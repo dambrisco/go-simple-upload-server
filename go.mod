@@ -1,6 +1,6 @@
 module github.com/mayth/go-simple-upload-server
 
-go 1.14
+go 1.20
 
 require (
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
