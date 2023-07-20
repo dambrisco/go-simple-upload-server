@@ -1,7 +1,5 @@
 FROM golang:1.20 AS build-env
 
-MAINTAINER Mei Akizuru
-
 RUN mkdir -p /go/src/app
 WORKDIR /go/src/app
 
