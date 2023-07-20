@@ -63,7 +63,10 @@ func run(args []string) int {
 		}
 	}
 	tlsEnabled := *certFile != "" && *keyFile != ""
-	server := NewServer(*serverRoot, *maxUploadSize, token, *corsEnabled, protectedMethods)
+	server, err := NewServer(*serverRoot, *maxUploadSize, token, *corsEnabled, protectedMethods)
+	if err != nil {
+		panic(err)
+	}
 	http.Handle("/upload", server)
 	http.Handle("/files/", server)
 
@@ -99,7 +102,7 @@ func run(args []string) int {
 		}()
 	}
 
-	err := <-errors
+	err = <-errors
 	logger.WithError(err).Info("closing server")
 
 	return 0
