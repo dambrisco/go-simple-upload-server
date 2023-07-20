@@ -1,4 +1,4 @@
-module github.com/mayth/go-simple-upload-server
+module github.com/redditdota2league/go-simple-upload-server
 
 go 1.20
 
