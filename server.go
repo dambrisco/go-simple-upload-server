@@ -61,7 +61,8 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fmt.Errorf("\"%s\" is not found", r.URL.Path))
 		return
 	}
-	targetPath := path.Join(matches[1], matches[2])
+	targetPath := path.Clean(path.Join(matches[1], matches[2]))
+
 	rc, err := s.FileStore.Read(targetPath)
 	if err != nil {
 		logger.WithError(err).Error("failed to read file from FileStore")
@@ -83,7 +84,7 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fmt.Errorf("\"%s\" is not found", r.URL.Path))
 		return
 	}
-	targetPath := path.Join(matches[1], matches[2])
+	targetPath := path.Clean(path.Join(matches[1], matches[2]))
 
 	reader := http.MaxBytesReader(w, r.Body, s.MaxUploadSize)
 	defer reader.Close()
