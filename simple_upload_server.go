@@ -17,12 +17,12 @@ var logger *logrus.Logger
 func run(args []string) int {
 	bindAddress := flag.String("ip", "0.0.0.0", "IP address to bind")
 	listenPort := flag.Int("port", 25478, "port number to listen on")
-	tlsListenPort := flag.Int("tlsport", 25443, "port number to listen on with TLS")
+	tlsListenPort := flag.Int("tls-port", 25443, "port number to listen on with TLS")
 	// 5,242,880 bytes == 5 MiB
-	maxUploadSize := flag.Int64("upload_limit", 5242880, "max size of uploaded file (byte)")
+	maxUploadSize := flag.Int64("upload-limit", 5242880, "max size of uploaded file (byte)")
 	tokenFlag := flag.String("token", "", "specify the security token (it is automatically generated if empty)")
-	protectedMethodFlag := flag.String("protected_method", "GET,POST,HEAD,PUT", "specify methods intended to be protect by the security token")
-	logLevelFlag := flag.String("loglevel", "info", "logging level")
+	protectedMethodFlag := flag.String("protected-method", "GET,POST,HEAD,PUT", "specify methods intended to be protect by the security token")
+	logLevelFlag := flag.String("log-level", "info", "logging level")
 	certFile := flag.String("cert", "", "path to certificate file")
 	keyFile := flag.String("key", "", "path to key file")
 	corsEnabled := flag.Bool("cors", false, "if true, add ACAO header to support CORS")
