@@ -2,9 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
-	"os"
 )
 
 type response struct {
@@ -47,16 +45,4 @@ func writeSuccess(w http.ResponseWriter, path string) (int, error) {
 		return w.Write([]byte{})
 	}
 	return w.Write(b)
-}
-
-func getSize(content io.Seeker) (int64, error) {
-	size, err := content.Seek(0, os.SEEK_END)
-	if err != nil {
-		return 0, err
-	}
-	_, err = content.Seek(0, io.SeekStart)
-	if err != nil {
-		return 0, err
-	}
-	return size, nil
 }
