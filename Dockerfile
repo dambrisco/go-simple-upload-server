@@ -4,7 +4,7 @@ RUN mkdir -p /go/src/app
 WORKDIR /go/src/app
 
 # resolve dependency before copying whole source code
-COPY go.mod go.sum .
+COPY go.mod go.sum ./
 RUN go mod download
 
 # copy other sources & build
