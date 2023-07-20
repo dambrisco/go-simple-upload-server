@@ -26,9 +26,9 @@ func run(args []string) int {
 	certFile := flag.String("cert", "", "path to certificate file")
 	keyFile := flag.String("key", "", "path to key file")
 	corsEnabled := flag.Bool("cors", false, "if true, add ACAO header to support CORS")
+	serverRoot := flag.String("server-root", "", "specify the directory to use as the file root")
 	flag.Parse()
-	serverRoot := flag.Arg(0)
-	if len(serverRoot) == 0 {
+	if len(*serverRoot) == 0 {
 		flag.Usage()
 		return 2
 	}
@@ -63,7 +63,7 @@ func run(args []string) int {
 		}
 	}
 	tlsEnabled := *certFile != "" && *keyFile != ""
-	server := NewServer(serverRoot, *maxUploadSize, token, *corsEnabled, protectedMethods)
+	server := NewServer(*serverRoot, *maxUploadSize, token, *corsEnabled, protectedMethods)
 	http.Handle("/upload", server)
 	http.Handle("/files/", server)
 
