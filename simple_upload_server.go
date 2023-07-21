@@ -68,7 +68,6 @@ func run(args []string) int {
 	if err != nil {
 		panic(err)
 	}
-	http.Handle("/upload", server)
 	http.Handle("/files/", server)
 
 	errors := make(chan error)
