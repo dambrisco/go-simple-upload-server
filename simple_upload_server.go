@@ -29,6 +29,7 @@ func run(args []string) int {
 	serverRoot := flag.String("server-root", "", "specify the directory to use as the file root")
 	flag.Parse()
 	if len(*serverRoot) == 0 {
+		logrus.Error("value for -server-root flag is required")
 		flag.Usage()
 		return 2
 	}
@@ -79,7 +80,7 @@ func run(args []string) int {
 			"token":            token,
 			"protected_method": protectedMethods,
 			"upload_limit":     *maxUploadSize,
-			"root":             serverRoot,
+			"root":             *serverRoot,
 			"cors":             *corsEnabled,
 		}).Info("start listening")
 

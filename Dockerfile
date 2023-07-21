@@ -9,8 +9,9 @@ RUN go mod download
 
 # copy other sources & build
 COPY . /go/src/app
-RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /go/bin/app
+RUN make build GO_BUILD_TARGET=/go/bin/app
 
-FROM scratch AS run
+FROM ubuntu:latest AS run
 COPY --from=build /go/bin/app /app
-ENTRYPOINT ["/app"]
+
+CMD ["/app"]
