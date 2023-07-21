@@ -126,7 +126,12 @@ func (s *Server) checkToken(r *http.Request) error {
 	token := r.URL.Query().Get("token")
 	// if token is not found, check the form parameter.
 	if token == "" {
-		token = r.FormValue("token")
+		authorization := r.Header.Get("Authorization")
+		tokenArray := strings.Split(authorization, "Bearer ")
+		if len(tokenArray) != 2 {
+			return errors.New("invalid authorization format, expected \"Authorization: Bearer <token>\"")
+		}
+		token = tokenArray[1]
 	}
 	if token == "" {
 		return errMissingToken
