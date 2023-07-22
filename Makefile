@@ -11,6 +11,10 @@ TOKEN ?= "TEST-TOKEN-DO-NOT-USE"
 build:
 	go build -o $(GO_BUILD_TARGET)
 
+.PHONY: test
+test:
+	go test
+
 .PHONY: docker/build
 docker/build:
 	docker build --tag=$(DOCKER_TAG) --file=Dockerfile .
@@ -23,11 +27,14 @@ docker/run: docker/build
 docker/start: docker/build
 	docker run --detach --rm --interactive --tty --publish=127.0.0.1:$(DOCKER_PORT):$(APP_PORT)/tcp $(DOCKER_TAG) /app -server-root=/tmp -port=$(APP_PORT) -token=$(TOKEN)
 
+.PHONY: test/put
 test/put:
 	curl --write-out "\n" --include --header "Authorization: Bearer $(TOKEN)" --request PUT --data $(TEST_PAYLOAD) $(TEST_URL)/$(TEST_FILENAME)
 
+.PHONY: test/post
 test/post:
 	curl --write-out "\n" --include --header "Authorization: Bearer $(TOKEN)" --request POST --data $(TEST_PAYLOAD) $(TEST_URL)
 
+.PHONY: test/get
 test/get:
 	curl --write-out "\n" --include --header "Authorization: Bearer $(TOKEN)" --request GET $(TEST_URL)/$(TEST_FILENAME)

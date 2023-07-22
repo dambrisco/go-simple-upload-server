@@ -12,4 +12,4 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - run: docker build --tag go-simple-upload-server --file Dockerfile .
+    - run: make docker/build
