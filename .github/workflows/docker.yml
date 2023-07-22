@@ -17,3 +17,5 @@ jobs:
     - run: make test/put
     - run: make test/get
     - run: make test/post
+    - run: make docker/logs
+      if: always()

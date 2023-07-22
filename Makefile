@@ -1,6 +1,7 @@
 GO_BUILD_TARGET ?= ./bin/go-simple-upload-server
 DOCKER_TAG ?= go-simple-upload-server
 DOCKER_PORT ?= 3000
+DOCKER_CONTAINER_NAME ?= $(DOCKER_TAG)
 APP_PORT ?= 80
 TEST_URL ?= "127.0.0.1:$(DOCKER_PORT)/files"
 TEST_FILENAME ?= 'testfile'
@@ -25,7 +26,11 @@ docker/run: docker/build
 
 .PHONY: docker/start
 docker/start: docker/build
-	docker run --detach --rm --interactive --tty --publish=127.0.0.1:$(DOCKER_PORT):$(APP_PORT)/tcp $(DOCKER_TAG) /app -server-root=/tmp -port=$(APP_PORT) -token=$(TOKEN)
+	docker run --detach --name=$(DOCKER_CONTAINER_NAME) --rm --interactive --tty --publish=127.0.0.1:$(DOCKER_PORT):$(APP_PORT)/tcp $(DOCKER_TAG) /app -server-root=/tmp -port=$(APP_PORT) -token=$(TOKEN)
+
+.PHONY: docker/logs
+docker/logs:
+	docker logs $(DOCKER_CONTAINER_NAME)
 
 .PHONY: test/put
 test/put:
