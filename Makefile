@@ -21,7 +21,7 @@ docker/run: docker/build
 
 .PHONY: docker/start
 docker/start: docker/build
-	docker run --rm --interactive --tty --publish=127.0.0.1:$(DOCKER_PORT):$(APP_PORT)/tcp --detach $(DOCKER_TAG) /app -server-root=/tmp -port=$(APP_PORT)
+	docker run --detach --rm --interactive --tty --publish=127.0.0.1:$(DOCKER_PORT):$(APP_PORT)/tcp $(DOCKER_TAG) /app -server-root=/tmp -port=$(APP_PORT) -token=$(TOKEN)
 
 test/put:
 	curl --write-out "\n" --include --header "Authorization: Bearer $(TOKEN)" --request PUT --data $(TEST_PAYLOAD) $(TEST_URL)/$(TEST_FILENAME)
