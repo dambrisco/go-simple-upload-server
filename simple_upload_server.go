@@ -38,7 +38,7 @@ func run(args []string) int {
 	} else {
 		logger.Level = logLevel
 	}
-	token := *tokenFlag
+	token := strings.TrimSpace(*tokenFlag)
 	if token == "" {
 		count := 10
 		b := make([]byte, count)
@@ -68,7 +68,6 @@ func run(args []string) int {
 	if err != nil {
 		panic(err)
 	}
-	http.Handle("/files/", server)
 
 	errors := make(chan error)
 
@@ -83,7 +82,7 @@ func run(args []string) int {
 			"cors":             *corsEnabled,
 		}).Info("start listening")
 
-		if err := http.ListenAndServe(fmt.Sprintf("%s:%d", *bindAddress, *listenPort), nil); err != nil {
+		if err := http.ListenAndServe(fmt.Sprintf("%s:%d", *bindAddress, *listenPort), server); err != nil {
 			errors <- err
 		}
 	}()

@@ -5,30 +5,21 @@ import (
 	"net/http"
 )
 
-type response struct {
-	OK bool `json:"ok"`
-}
-
 type uploadedResponse struct {
-	response
-	Path string `json:"path"`
-}
-
-func newUploadedResponse(path string) uploadedResponse {
-	return uploadedResponse{response: response{OK: true}, Path: path}
+	Filename string `json:"filename"`
 }
 
 type errorResponse struct {
-	response
 	Message string `json:"error"`
 }
 
-func newErrorResponse(err error) errorResponse {
-	return errorResponse{response: response{OK: false}, Message: err.Error()}
+func writeError(w http.ResponseWriter, err error) (int, error) {
+	return writeErrorWithMessage(w, err, err.Error())
 }
 
-func writeError(w http.ResponseWriter, err error) (int, error) {
-	body := newErrorResponse(err)
+func writeErrorWithMessage(w http.ResponseWriter, err error, msg string) (int, error) {
+	logger.WithError(err).Error(msg)
+	body := errorResponse{Message: msg}
 	b, e := json.Marshal(body)
 	// if an error is occured on marshaling, write empty value as response.
 	if e != nil {
@@ -37,8 +28,8 @@ func writeError(w http.ResponseWriter, err error) (int, error) {
 	return w.Write(b)
 }
 
-func writeSuccess(w http.ResponseWriter, path string) (int, error) {
-	body := newUploadedResponse(path)
+func writeSuccess(w http.ResponseWriter, filename string) (int, error) {
+	body := uploadedResponse{Filename: filename}
 	b, e := json.Marshal(body)
 	// if an error is occured on marshaling, write empty value as response.
 	if e != nil {

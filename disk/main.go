@@ -30,15 +30,14 @@ func (ds *Store) Exists(filename string) (bool, error) {
 	}
 
 	fPath := path.Join(ds.rootDirectory, filename)
-	f, err := os.Open(fPath)
+	_, err := os.Stat(fPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
 		return false, err
 	}
-	if f != nil {
-		defer f.Close()
-		return true, nil
-	}
-	return false, nil
+	return true, nil
 }
 
 func (ds *Store) Read(filename string) (io.ReadCloser, error) {

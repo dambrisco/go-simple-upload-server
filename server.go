@@ -2,14 +2,16 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
-	"path"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/chi/v5"
 	"github.com/redditdota2league/go-simple-upload-server/disk"
+	"github.com/segmentio/ksuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,6 +24,8 @@ var (
 
 // *Server represents a simple-upload server.
 type Server struct {
+	chi.Router
+
 	FileStore FileStore
 	// MaxUploadSize limits the size of the uploaded content, specified with "byte".
 	MaxUploadSize    int64
@@ -32,42 +36,70 @@ type Server struct {
 
 // NewServer creates a new simple-upload server.
 func NewServer(documentRoot string, maxUploadSize int64, token string, enableCORS bool, protectedMethods []string) (*Server, error) {
-	s, err := disk.NewStore(documentRoot)
+	store, err := disk.NewStore(documentRoot)
 	if err != nil {
 		return nil, err
 	}
-	return &Server{
-		FileStore:        s,
+
+	s := &Server{
+		FileStore:        store,
 		MaxUploadSize:    maxUploadSize,
 		SecureToken:      token,
 		EnableCORS:       enableCORS,
 		ProtectedMethods: protectedMethods,
-	}, nil
+	}
+
+	r := chi.NewRouter()
+	r.Use(closeBody)
+	r.Use(s.authorize)
+	r.Use(s.handleCORS)
+	r.Use(s.setMaxBytes)
+	r.Use(middleware.Timeout(60 * time.Second))
+	r.Route("/files", func(r chi.Router) {
+		r.Options("/", s.getOptions)
+		r.Head("/{filename}", s.checkIfFileExists)
+		r.Get("/{filename}", s.retrieveFile)
+		r.Put("/{filename}", s.uploadFile)
+		r.Post("/", s.uploadFileWithoutName)
+	})
+
+	s.Router = r
+	return s, nil
 }
 
-func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
-	if !rePathFiles.MatchString(r.URL.Path) {
-		w.WriteHeader(http.StatusNotFound)
-		writeError(w, fmt.Errorf("\"%s\" is not found", r.URL.Path))
-		return
-	}
-	if s.EnableCORS {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-	}
-	matches := rePathFiles.FindStringSubmatch(r.URL.Path)
-	if matches == nil {
-		logger.WithField("path", r.URL.Path).Info("invalid path")
-		w.WriteHeader(http.StatusNotFound)
-		writeError(w, fmt.Errorf("\"%s\" is not found", r.URL.Path))
-		return
-	}
-	targetPath := path.Clean(path.Join("/", matches[1], matches[2]))
+// Handlers
 
-	rc, err := s.FileStore.Read(targetPath)
+func (s *Server) getOptions(w http.ResponseWriter, r *http.Request) {
+	allowedMethods := []string{http.MethodPost, http.MethodPut, http.MethodGet, http.MethodHead}
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", strings.Join(allowedMethods, ","))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) checkIfFileExists(w http.ResponseWriter, r *http.Request) {
+	filename := chi.URLParam(r, "filename")
+	exists, err := s.FileStore.Exists(filename)
+
 	if err != nil {
-		logger.WithError(err).Error("failed to read file from FileStore")
 		w.WriteHeader(http.StatusInternalServerError)
-		writeError(w, err)
+		writeErrorWithMessage(w, err, "failed to check if file exists")
+		return
+	}
+
+	if exists {
+		w.WriteHeader(http.StatusNoContent)
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+	}
+}
+
+func (s *Server) retrieveFile(w http.ResponseWriter, r *http.Request) {
+	filename := chi.URLParam(r, "filename")
+
+	rc, err := s.FileStore.Read(filename)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		writeErrorWithMessage(w, err, "failed to read file from FileStore")
 		return
 	}
 	defer rc.Close()
@@ -76,71 +108,83 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
 	io.Copy(w, rc)
 }
 
-func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
-	matches := rePathFiles.FindStringSubmatch(r.URL.Path)
-	if matches == nil {
-		logger.WithField("path", r.URL.Path).Info("invalid path")
-		w.WriteHeader(http.StatusNotFound)
-		writeError(w, fmt.Errorf("\"%s\" is not found", r.URL.Path))
+func (s *Server) uploadFile(w http.ResponseWriter, r *http.Request) {
+	filename := chi.URLParam(r, "filename")
+	writeFile(filename, s.FileStore, w, r)
+}
+
+func (s *Server) uploadFileWithoutName(w http.ResponseWriter, r *http.Request) {
+	id, err := ksuid.NewRandom()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		writeErrorWithMessage(w, err, "failed to generate KSUID")
 		return
 	}
-	targetPath := path.Clean(path.Join("/", matches[1], matches[2]))
+	writeFile(id.String(), s.FileStore, w, r)
+}
 
-	reader := http.MaxBytesReader(w, r.Body, s.MaxUploadSize)
-	defer reader.Close()
-	n, err := s.FileStore.Write(targetPath, r.Body)
+func writeFile(filename string, fileStore FileStore, w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	n, err := fileStore.Write(filename, r.Body)
 	if err != nil {
-		logger.WithError(err).Error("failed to write body to the file")
 		w.WriteHeader(http.StatusInternalServerError)
-		writeError(w, err)
+		writeErrorWithMessage(w, err, "failed to write body to filestore")
 		return
 	}
 
 	logger.WithFields(logrus.Fields{
-		"path": r.URL.Path,
-		"size": n,
+		"filename": filename,
+		"size":     n,
 	}).Infof("file uploaded by %s", r.Method)
-	if s.EnableCORS {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-	}
 	w.WriteHeader(http.StatusCreated)
-	writeSuccess(w, r.URL.Path)
+	writeSuccess(w, filename)
 }
 
-func (s *Server) handleOptions(w http.ResponseWriter, r *http.Request) {
-	var allowedMethods []string
-	if rePathFiles.MatchString(r.URL.Path) {
-		allowedMethods = []string{http.MethodPost, http.MethodPut, http.MethodGet, http.MethodHead}
-	} else {
-		w.WriteHeader(http.StatusNotFound)
-		writeError(w, errors.New("not found"))
-		return
-	}
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", strings.Join(allowedMethods, ","))
-	w.WriteHeader(http.StatusNoContent)
-}
+// Middleware
 
-func (s *Server) checkToken(r *http.Request) error {
-	// first, try to get the token from the query strings
-	token := r.URL.Query().Get("token")
-	// if token is not found, check the form parameter.
-	if token == "" {
-		authorization := r.Header.Get("Authorization")
-		tokenArray := strings.Split(authorization, "Bearer ")
-		if len(tokenArray) != 2 {
-			return errors.New("invalid authorization format, expected \"Authorization: Bearer <token>\"")
+func (s *Server) authorize(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.isAuthenticationRequired(r) {
+			token, err := getToken(r)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				writeError(w, err)
+				return
+			}
+			if err := checkToken(s.SecureToken, token); err != nil {
+				w.WriteHeader(http.StatusUnauthorized)
+				writeError(w, err)
+				return
+			}
+			next.ServeHTTP(w, r)
 		}
-		token = tokenArray[1]
-	}
-	if token == "" {
-		return errMissingToken
-	}
-	if token != s.SecureToken {
-		return errTokenMismatch
-	}
-	return nil
+	})
 }
+
+func closeBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) handleCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.EnableCORS {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) setMaxBytes(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, s.MaxUploadSize)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Helpers
 
 func (s *Server) isAuthenticationRequired(r *http.Request) bool {
 	for _, m := range s.ProtectedMethods {
@@ -151,24 +195,21 @@ func (s *Server) isAuthenticationRequired(r *http.Request) bool {
 	return false
 }
 
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	if err := s.checkToken(r); s.isAuthenticationRequired(r) && err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		writeError(w, err)
-		return
+func getToken(r *http.Request) (string, error) {
+	authorization := r.Header.Get("Authorization")
+	tokenArray := strings.Split(authorization, "Bearer ")
+	if len(tokenArray) != 2 {
+		return "", errors.New("invalid authorization format, expected \"Authorization: Bearer <token>\"")
 	}
+	return tokenArray[1], nil
+}
 
-	switch r.Method {
-	case http.MethodGet, http.MethodHead:
-		s.handleGet(w, r)
-	case http.MethodPost, http.MethodPut:
-		s.handlePut(w, r)
-	case http.MethodOptions:
-		s.handleOptions(w, r)
-	default:
-		w.Header().Add("Allow", "GET,HEAD,POST,PUT")
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		writeError(w, fmt.Errorf("method \"%s\" is not allowed", r.Method))
+func checkToken(serverToken, userToken string) error {
+	if userToken == "" {
+		return errMissingToken
 	}
+	if userToken != serverToken {
+		return errTokenMismatch
+	}
+	return nil
 }
