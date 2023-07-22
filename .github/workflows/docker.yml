@@ -13,3 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - run: make docker/build
+    - run: make docker/start
+    - run: make test/put
+    - run: make test/get
+    - run: make test/post
