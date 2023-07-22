@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -16,8 +15,6 @@ import (
 )
 
 var (
-	rePathFiles = regexp.MustCompile(`^/files(/.*)?(/[^/]+)$`)
-
 	errTokenMismatch = errors.New("token mismatched")
 	errMissingToken  = errors.New("missing token")
 )
