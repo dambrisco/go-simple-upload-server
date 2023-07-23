@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	errTokenMismatch = errors.New("token mismatched")
-	errMissingToken  = errors.New("missing token")
+	errTokenMismatch   = errors.New("token mismatched")
+	errMissingToken    = errors.New("missing token")
+	errInvalidFilename = errors.New("invalid filename")
 )
 
 // *Server represents a simple-upload server.
@@ -74,15 +75,17 @@ func (s *Server) getOptions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) checkIfFileExists(w http.ResponseWriter, r *http.Request) {
-	filename := sanitizeFilename(chi.URLParam(r, "filename"))
-	exists, err := s.FileStore.Exists(filename)
+	filename := chi.URLParam(r, "filename")
+	if !isValidFilename(filename) {
+		return
+	}
 
+	exists, err := s.FileStore.Exists(filename)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		writeErrorWithMessage(w, err, "failed to check if file exists")
 		return
 	}
-
 	if exists {
 		w.WriteHeader(http.StatusNoContent)
 	} else {
@@ -91,7 +94,10 @@ func (s *Server) checkIfFileExists(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) retrieveFile(w http.ResponseWriter, r *http.Request) {
-	filename := sanitizeFilename(chi.URLParam(r, "filename"))
+	filename := chi.URLParam(r, "filename")
+	if !isValidFilename(filename) {
+		return
+	}
 
 	rc, err := s.FileStore.Read(filename)
 	if err != nil {
@@ -106,7 +112,10 @@ func (s *Server) retrieveFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadFile(w http.ResponseWriter, r *http.Request) {
-	filename := sanitizeFilename(chi.URLParam(r, "filename"))
+	filename := chi.URLParam(r, "filename")
+	if !isValidFilename(filename) {
+		return
+	}
 	writeFile(filename, s.FileStore, w, r)
 }
 
@@ -211,22 +220,12 @@ func checkToken(serverToken, userToken string) error {
 	return nil
 }
 
-func sanitizeFilename(input string) string {
-	arr := strings.Split(input, "")
-	previous := ""
-	builder := strings.Builder{}
-	for _, s := range arr {
-		switch s {
-		case "/":
-			continue
-		case ".":
-			if previous != "." {
-				builder.WriteString(s)
-			}
-		default:
-			builder.WriteString(s)
-		}
-		previous = s
+func isValidFilename(input string) bool {
+	if strings.Contains(input, "/") {
+		return false
 	}
-	return builder.String()
+	if strings.Contains(input, "..") {
+		return false
+	}
+	return true
 }
