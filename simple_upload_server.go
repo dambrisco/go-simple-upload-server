@@ -9,10 +9,18 @@ import (
 
 	"crypto/rand"
 
+	"github.com/redditdota2league/go-simple-upload-server/discord"
+	"github.com/redditdota2league/go-simple-upload-server/disk"
 	"github.com/sirupsen/logrus"
 )
 
-var logger *logrus.Logger
+var (
+	logger *logrus.Logger
+
+	storageDisk    = "disk"
+	storageDiscord = "discord"
+	storageOptions = []string{storageDisk, storageDiscord}
+)
 
 func run(args []string) int {
 	bindAddress := flag.String("ip", "0.0.0.0", "IP address to bind")
@@ -26,18 +34,25 @@ func run(args []string) int {
 	certFile := flag.String("cert", "", "path to certificate file")
 	keyFile := flag.String("key", "", "path to key file")
 	corsEnabled := flag.Bool("cors", false, "if true, add ACAO header to support CORS")
+	storageBackend := flag.String("storage-backend", "", fmt.Sprintf("storage backend type, options: %s", strings.Join(storageOptions, ",")))
 	serverRoot := flag.String("server-root", "", "specify the directory to use as the file root")
+	discordWebhook := flag.String("discord-webhook", "", "Discord webhook to use for filestore")
 	flag.Parse()
+
+	if *storageBackend == "" {
+		storageBackend = &storageOptions[0]
+		logger.WithField("storage-backend", *storageBackend).Warn("using default storage backend")
+	}
 	if len(*serverRoot) == 0 {
 		logrus.Error("value for -server-root flag is required")
 		flag.Usage()
 		return 2
 	}
-	if logLevel, err := logrus.ParseLevel(*logLevelFlag); err != nil {
+	logLevel, err := logrus.ParseLevel(*logLevelFlag)
+	if err != nil {
 		logrus.WithError(err).Error("failed to parse logging level, so set to default")
-	} else {
-		logger.Level = logLevel
 	}
+	logger.Level = logLevel
 	token := strings.TrimSpace(*tokenFlag)
 	if token == "" {
 		count := 10
@@ -64,7 +79,24 @@ func run(args []string) int {
 		}
 	}
 	tlsEnabled := *certFile != "" && *keyFile != ""
-	server, err := NewServer(*serverRoot, *maxUploadSize, token, *corsEnabled, protectedMethods)
+
+	var backend StorageBackend
+	switch *storageBackend {
+	case storageDisk:
+		backend, err = disk.NewStore(*serverRoot)
+		if err != nil {
+			panic(err)
+		}
+	case storageDiscord:
+		backend, err = discord.NewStore(*discordWebhook)
+		if err != nil {
+			panic(err)
+		}
+	default:
+		panic(fmt.Errorf("unknown store type: %s", *storageBackend))
+	}
+
+	server, err := NewServer(backend, *maxUploadSize, token, *corsEnabled, protectedMethods)
 	if err != nil {
 		panic(err)
 	}

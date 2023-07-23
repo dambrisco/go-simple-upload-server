@@ -3,6 +3,8 @@ DOCKER_TAG ?= go-simple-upload-server
 DOCKER_PORT ?= 3000
 DOCKER_CONTAINER_NAME ?= $(DOCKER_TAG)
 APP_PORT ?= 80
+APP_BACKEND ?= "disk"
+APP_DISCORD_WEBHOOK ?= "https://example.com/fake-webhook"
 TEST_URL ?= "127.0.0.1:$(DOCKER_PORT)/files"
 TEST_FILENAME ?= 'testfile'
 TEST_PAYLOAD ?= '{"hello":"world"}'
@@ -22,11 +24,11 @@ docker/build:
 
 .PHONY: docker/run
 docker/run: docker/build
-	docker run --rm --interactive --tty --publish=127.0.0.1:$(DOCKER_PORT):$(APP_PORT)/tcp $(DOCKER_TAG) /app -server-root=/tmp -port=$(APP_PORT) -token=$(TOKEN)
+	docker run --rm --interactive --tty --publish=127.0.0.1:$(DOCKER_PORT):$(APP_PORT)/tcp $(DOCKER_TAG) /app -server-root=/tmp -port=$(APP_PORT) -token=$(TOKEN) -storage-backend=$(APP_BACKEND) -discord-webhook=$(APP_DISCORD_WEBHOOK)
 
 .PHONY: docker/start
 docker/start: docker/build
-	docker run --detach --name=$(DOCKER_CONTAINER_NAME) --rm --interactive --tty --publish=127.0.0.1:$(DOCKER_PORT):$(APP_PORT)/tcp $(DOCKER_TAG) /app -server-root=/tmp -port=$(APP_PORT) -token=$(TOKEN)
+	docker run --detach --name=$(DOCKER_CONTAINER_NAME) --rm --interactive --tty --publish=127.0.0.1:$(DOCKER_PORT):$(APP_PORT)/tcp $(DOCKER_TAG) /app -server-root=/tmp -port=$(APP_PORT) -token=$(TOKEN) -storage-backend=$(APP_BACKEND) -discord-webhook=$(APP_DISCORD_WEBHOOK)
 
 .PHONY: docker/logs
 docker/logs:

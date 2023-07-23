@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
-	"github.com/redditdota2league/go-simple-upload-server/disk"
 	"github.com/segmentio/ksuid"
 	"github.com/sirupsen/logrus"
 )
@@ -24,7 +23,7 @@ var (
 type Server struct {
 	chi.Router
 
-	FileStore FileStore
+	Backend StorageBackend
 	// MaxUploadSize limits the size of the uploaded content, specified with "byte".
 	MaxUploadSize    int64
 	SecureToken      string
@@ -33,14 +32,9 @@ type Server struct {
 }
 
 // NewServer creates a new simple-upload server.
-func NewServer(documentRoot string, maxUploadSize int64, token string, enableCORS bool, protectedMethods []string) (*Server, error) {
-	store, err := disk.NewStore(documentRoot)
-	if err != nil {
-		return nil, err
-	}
-
+func NewServer(backend StorageBackend, maxUploadSize int64, token string, enableCORS bool, protectedMethods []string) (*Server, error) {
 	s := &Server{
-		FileStore:        store,
+		Backend:          backend,
 		MaxUploadSize:    maxUploadSize,
 		SecureToken:      token,
 		EnableCORS:       enableCORS,
@@ -82,7 +76,7 @@ func (s *Server) checkIfFileExists(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exists, err := s.FileStore.Exists(filename)
+	exists, err := s.Backend.Exists(filename)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		writeErrorWithMessage(w, err, "failed to check if file exists")
@@ -103,7 +97,7 @@ func (s *Server) retrieveFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rc, err := s.FileStore.Read(filename)
+	rc, err := s.Backend.Read(filename)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		writeErrorWithMessage(w, err, "failed to read file from FileStore")
@@ -122,7 +116,7 @@ func (s *Server) uploadFile(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errInvalidFilename)
 		return
 	}
-	writeFile(filename, s.FileStore, w, r)
+	writeFile(filename, s.Backend, w, r)
 }
 
 func (s *Server) uploadFileWithoutName(w http.ResponseWriter, r *http.Request) {
@@ -132,12 +126,12 @@ func (s *Server) uploadFileWithoutName(w http.ResponseWriter, r *http.Request) {
 		writeErrorWithMessage(w, err, "failed to generate KSUID")
 		return
 	}
-	writeFile(id.String(), s.FileStore, w, r)
+	writeFile(id.String(), s.Backend, w, r)
 }
 
-func writeFile(filename string, fileStore FileStore, w http.ResponseWriter, r *http.Request) {
+func writeFile(filename string, storageBackend StorageBackend, w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	n, err := fileStore.Write(filename, r.Body)
+	n, err := storageBackend.Write(filename, r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		writeErrorWithMessage(w, err, "failed to write body to filestore")
