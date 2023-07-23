@@ -77,6 +77,8 @@ func (s *Server) getOptions(w http.ResponseWriter, r *http.Request) {
 func (s *Server) checkIfFileExists(w http.ResponseWriter, r *http.Request) {
 	filename := chi.URLParam(r, "filename")
 	if !isValidFilename(filename) {
+		w.WriteHeader(http.StatusBadRequest)
+		writeError(w, errInvalidFilename)
 		return
 	}
 
@@ -96,6 +98,8 @@ func (s *Server) checkIfFileExists(w http.ResponseWriter, r *http.Request) {
 func (s *Server) retrieveFile(w http.ResponseWriter, r *http.Request) {
 	filename := chi.URLParam(r, "filename")
 	if !isValidFilename(filename) {
+		w.WriteHeader(http.StatusBadRequest)
+		writeError(w, errInvalidFilename)
 		return
 	}
 
@@ -114,6 +118,8 @@ func (s *Server) retrieveFile(w http.ResponseWriter, r *http.Request) {
 func (s *Server) uploadFile(w http.ResponseWriter, r *http.Request) {
 	filename := chi.URLParam(r, "filename")
 	if !isValidFilename(filename) {
+		w.WriteHeader(http.StatusBadRequest)
+		writeError(w, errInvalidFilename)
 		return
 	}
 	writeFile(filename, s.FileStore, w, r)
