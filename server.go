@@ -74,7 +74,7 @@ func (s *Server) getOptions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) checkIfFileExists(w http.ResponseWriter, r *http.Request) {
-	filename := chi.URLParam(r, "filename")
+	filename := sanitizeFilename(chi.URLParam(r, "filename"))
 	exists, err := s.FileStore.Exists(filename)
 
 	if err != nil {
@@ -91,7 +91,7 @@ func (s *Server) checkIfFileExists(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) retrieveFile(w http.ResponseWriter, r *http.Request) {
-	filename := chi.URLParam(r, "filename")
+	filename := sanitizeFilename(chi.URLParam(r, "filename"))
 
 	rc, err := s.FileStore.Read(filename)
 	if err != nil {
@@ -106,7 +106,7 @@ func (s *Server) retrieveFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadFile(w http.ResponseWriter, r *http.Request) {
-	filename := chi.URLParam(r, "filename")
+	filename := sanitizeFilename(chi.URLParam(r, "filename"))
 	writeFile(filename, s.FileStore, w, r)
 }
 
@@ -193,12 +193,12 @@ func (s *Server) isAuthenticationRequired(r *http.Request) bool {
 }
 
 func getToken(r *http.Request) (string, error) {
-	authorization := r.Header.Get("Authorization")
-	tokenArray := strings.Split(authorization, "Bearer ")
-	if len(tokenArray) != 2 {
+	authorization := strings.TrimSpace(r.Header.Get("Authorization"))
+	before, after, found := strings.Cut(authorization, "Bearer ")
+	if !found || before != "" {
 		return "", errors.New("invalid authorization format, expected \"Authorization: Bearer <token>\"")
 	}
-	return tokenArray[1], nil
+	return after, nil
 }
 
 func checkToken(serverToken, userToken string) error {
@@ -209,4 +209,24 @@ func checkToken(serverToken, userToken string) error {
 		return errTokenMismatch
 	}
 	return nil
+}
+
+func sanitizeFilename(input string) string {
+	arr := strings.Split(input, "")
+	previous := ""
+	builder := strings.Builder{}
+	for _, s := range arr {
+		switch s {
+		case "/":
+			continue
+		case ".":
+			if previous != "." {
+				builder.WriteString(s)
+			}
+		default:
+			builder.WriteString(s)
+		}
+		previous = s
+	}
+	return builder.String()
 }
